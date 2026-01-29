@@ -1,0 +1,10 @@
+#ifndef STORAGE_EVELDB_INCLUDE_EXPORT_H_
+#define STORAGE_EVELDB_INCLUDE_EXPORT_H_
+
+#if !defined(EVELDB_EXPORT)
+
+#define EVELDB_EXPORT
+
+#endif
+
+#endif
