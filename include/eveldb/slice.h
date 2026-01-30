@@ -54,9 +54,7 @@ inline bool operator==(const Slice& x, const Slice& y) {
           (std::memcmp(x.data(), y.data(), x.size()) == 0));
 }
 
-inline bool operator!=(const Slice& x, const Slice& y) {
-  return !(x == y);
-}
+inline bool operator!=(const Slice& x, const Slice& y) { return !(x == y); }
 
 inline int Slice::compare(const Slice& b) const {
   size_t min_len = (size_ < b.size_) ? size_ : b.size_;

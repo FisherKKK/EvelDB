@@ -15,15 +15,15 @@ const char* Status::CopyState(const char* s) {
   return result;
 }
 
-inline std::string Status::ToString() const {
+std::string Status::ToString() const {
   if (state_ == nullptr) {
-    return "Ok";
+    return "OK";
   } else {
     char tmp[30];
     const char* type;
     switch (code()) {
       case kOk:
-        type = "Ok";
+        type = "OK";
         break;
       case kNotFound:
         type = "NotFound: ";
