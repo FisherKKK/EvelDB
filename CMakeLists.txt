@@ -13,12 +13,16 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # 3. project options
-option(BUILD_EXAMPLES "Build example" OFF)
+option(EVELDB_BUILD_EXAMPLES "Build example" OFF)
+option(EVELDB_BUILD_TESTS "Build test cases" ON)
 
 # 4. set output directories
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
+# 4.1 inlcude extern project
+include(extern/catch2/catch2.cmake)
 
 # 5. define core library and source
 set(EVELDB_PUBLIC_INCLUDE_DIR 
@@ -50,3 +54,15 @@ target_include_directories(eveldb
         "${PROJECT_SOURCE_DIR}"
 )
 
+# 5.1 Build test
+if(EVELDB_BUILD_TESTS)
+add_library(eveldb_tests "")
+target_sources(eveldb_tests
+    PRIVATE
+    "util/status_test.cc"
+)
+target_link_libraries(eveldb_tests PRIVATE Catch2::Catch2 eveldb)
+endif(EVELDB_BUILD_TESTS)
+
+# 5.2 add subdirectory
+add_subdirectory(tests)
