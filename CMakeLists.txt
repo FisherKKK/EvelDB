@@ -33,14 +33,18 @@ target_sources(eveldb
     PRIVATE
         "db/db_impl.cc"
         "db/db_impl.h"
+        "db/skiplist.h"
 
         "util/status.cc"
+        "util/arena.cc"
+        "util/arena.h"
 
     PUBLIC
         "${EVELDB_PUBLIC_INCLUDE_DIR}/slice.h"
         "${EVELDB_PUBLIC_INCLUDE_DIR}/status.h"
         "${EVELDB_PUBLIC_INCLUDE_DIR}/db.h"
         "${EVELDB_PUBLIC_INCLUDE_DIR}/export.h"
+        "${EVELDB_PUBLIC_INCLUDE_DIR}/options.h"
 
 )
 
@@ -60,6 +64,7 @@ add_library(eveldb_tests "")
 target_sources(eveldb_tests
     PRIVATE
     "util/status_test.cc"
+    "util/arena_test.cc"
 )
 target_link_libraries(eveldb_tests PRIVATE Catch2::Catch2 eveldb)
 endif(EVELDB_BUILD_TESTS)
