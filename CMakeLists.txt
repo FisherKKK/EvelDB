@@ -11,6 +11,7 @@ project(eveldb
 # 2. compiler settings
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF) # dont't use extention version of cxx17
 
 # 3. project options
 option(EVELDB_BUILD_EXAMPLES "Build example" OFF)
@@ -38,6 +39,7 @@ target_sources(eveldb
         "util/status.cc"
         "util/arena.cc"
         "util/arena.h"
+        "util/random.h"
 
     PUBLIC
         "${EVELDB_PUBLIC_INCLUDE_DIR}/slice.h"
@@ -48,14 +50,21 @@ target_sources(eveldb
 
 )
 
+# for test program
+# make them find the dependencies
+include_directories(
+  "${PROJECT_BINARY_DIR}/include"
+  "."
+)
+
 target_include_directories(eveldb
     PUBLIC
         $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-    PRIVATE
-        "${PROJECT_BINARY_DIR}/include"
-        "${PROJECT_SOURCE_DIR}/include/eveldb"
-        "${PROJECT_SOURCE_DIR}"
+    # PRIVATE
+    #     "${PROJECT_BINARY_DIR}/include"
+    #     "${PROJECT_SOURCE_DIR}/include/eveldb"
+    #     "${PROJECT_SOURCE_DIR}"
 )
 
 # 5.1 Build test
@@ -66,7 +75,7 @@ target_sources(eveldb_tests
     "util/status_test.cc"
     "util/arena_test.cc"
 )
-target_link_libraries(eveldb_tests PRIVATE Catch2::Catch2 eveldb)
+target_link_libraries(eveldb_tests Catch2::Catch2 eveldb)
 endif(EVELDB_BUILD_TESTS)
 
 # 5.2 add subdirectory
