@@ -1,153 +1,150 @@
-#include <dirent.h>
-#include <fcntl.h>
-#include <sys/mman.h>
-
-#include "eveldb/status.h"
-#ifndef __Fuchsia__
-#include <sys/resource.h>
-#endif
 #include <atomic>
-#include <cerrno>
+#include <cassert>
 #include <cstddef>
-#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
-#include <limits>
 #include <queue>
-#include <set>
-#include <string>
-#include <sys/stat.h>
-#include <sys/time.h>
-#include <sys/types.h>
 #include <thread>
 #include <type_traits>
-#include <unistd.h>
-#include <utility>
 
 #include "eveldb/env.h"
 
 #include "port/port.h"
+#include "port/thread_annotations.h"
 
 namespace eveldb {
 
 namespace {
-#if defined(HAVE_O_CLOEXEC)
-constexpr const int kOpenBaseFlags = O_CLOEXEC;
-#else
-constexpr const int kOpenBaseFlags = 0;
-#endif
 
-Status PosixError(const std::string& context, int error_number) {
-  if (error_number == ENOENT) {
-    return Status::NotFound(context, std::strerror(error_number));
-  } else {
-    return Status::IOError(context, std::strerror(error_number));
-  }
-}
-
-int LockOrUnlock(int fd, bool lock) {
-  errno = 0;
-  struct ::flock file_lock_info;
-  std::memset(&file_lock_info, 0, sizeof(file_lock_info));
-  file_lock_info.l_type = (lock ? F_WRLCK : F_ULOCK);
-  file_lock_info.l_whence = SEEK_SET;
-  file_lock_info.l_start = 0;
-  file_lock_info.l_len = 0;  // Lock/unlock entire file
-  return ::fcntl(fd, F_SETLK, &file_lock_info);
-}
-
-class PosixLockTable {
+class PosixEnv : public Env {
  public:
-  bool Insert(const std::string& filename) {
-    mu_.Lock();
-    bool succeed = locked_files_.insert(filename).second;
-    mu_.Unlock();
-    return succeed;
+  PosixEnv();
+  ~PosixEnv() override {
+    static const char msg[] =
+        "PosixEnv singleton destroyed. Unsupported behavior!\n";
+    std::fwrite(msg, 1, sizeof(msg), stderr);
+    std::abort();
   }
 
-  void Remove(const std::string& filename) {
-    mu_.Lock();
-    locked_files_.erase(filename);
-    mu_.Unlock();
-  }
+  void Schedule(void (*background_work_function)(void* background_work_arg),
+                void* background_work_arg) override;
 
  private:
-  port::Mutex mu_;
-  std::set<std::string> locked_files_;
-};
+  void BackgroundThreadMain();
 
-class PosixFileLock : public FileLock {
- public:
-  PosixFileLock(int fd, std::string filename)
-      : fd_(fd), filename_(std::move(filename)) {}
+  static void BackgroundThreadEntryPoint(PosixEnv* env) {
+    env->BackgroundThreadMain();
+  }
 
-  int fd() const { return fd_; }
-  const std::string& filename() const { return filename_; }
+  struct BackgroundWorkItem {
+    explicit BackgroundWorkItem(void (*function)(void* arg), void* arg)
+        : function(function), arg(arg) {}
 
- private:
-  const int fd_;
-  const std::string filename_;
+    void (*const function)(void*);
+    void* const arg;
+  };
+
+  port::Mutex background_work_mutex_;
+  port::CondVar background_work_cv_ GUARDED_BY(background_work_mutex_);
+  bool started_background_thread_ GUARDED_BY(background_work_mutex_);
+
+  std::queue<BackgroundWorkItem> background_work_queue_
+      GUARDED_BY(background_work_mutex_);
 };
 
 }  // namespace
 
-class PosixEnv : public Env {
+PosixEnv::PosixEnv()
+    : background_work_cv_(&background_work_mutex_),
+      started_background_thread_(false) {}
+
+void PosixEnv::Schedule(
+    void (*background_work_function)(void* background_work_arg),
+    void* background_work_arg) {
+  background_work_mutex_.Lock();
+
+  if (!started_background_thread_) {
+    started_background_thread_ = true;
+    std::thread background_thread(PosixEnv::BackgroundThreadEntryPoint, this);
+    background_thread.detach();
+  }
+
+  if (background_work_queue_.empty()) {
+    background_work_cv_.Signal();
+  }
+
+  background_work_queue_.emplace(background_work_function, background_work_arg);
+  background_work_mutex_.Unlock();
+}
+
+void PosixEnv::BackgroundThreadMain() {
+  while (true) {
+    background_work_mutex_.Lock();
+
+    while (background_work_queue_.empty()) {
+      background_work_cv_.Wait();
+    }
+
+    assert(!background_work_queue_.empty());
+    auto background_work_function = background_work_queue_.front().function;
+    void* background_work_arg = background_work_queue_.front().arg;
+    background_work_queue_.pop();
+
+    background_work_mutex_.Unlock();
+    background_work_function(background_work_arg);
+  }
+}
+
+namespace {
+template <typename EnvType>
+class SingletonEnv {
  public:
-  Status CreateDir(const std::string& dirname) override {
-    if (::mkdir(dirname.c_str(), 0755) != 0) {
-      return PosixError(dirname, errno);
-    }
-    return Status::OK();
+  SingletonEnv() {
+#if !defined(NDEBUG)
+    env_initialized_.store(true, std::memory_order_relaxed);
+#endif
+    static_assert(sizeof(env_storage_) >= sizeof(EnvType),
+                  "env_storage_ will not hold the Env");
+    static_assert(std::is_standard_layout_v<SingletonEnv<EnvType>>);
+    static_assert(
+        offsetof(SingletonEnv<EnvType>, env_storage_) % alignof(EnvType) == 0,
+        "env_storage_ does not meet the Env's alignment needs");
+    static_assert(alignof(SingletonEnv<EnvType>) % alignof(EnvType) == 0,
+                  "env_storage_ does not meet the Env's alignment need");
+    new (env_storage_) EnvType();
   }
 
-  Status LockFile(const std::string& filename, FileLock** lock) override {
-    *lock = nullptr;
-    // 1. Create the lock file
-    int fd = ::open(filename.c_str(), O_RDWR | O_CREAT | kOpenBaseFlags);
-    if (fd < 0) {
-      return PosixError(filename, errno);
-    }
+  ~SingletonEnv() = default;
+  SingletonEnv(const SingletonEnv&) = delete;
+  SingletonEnv& operator=(const SingletonEnv&) = delete;
 
-    // 2. Insert into the locktable in case of the same thread do the same thing
-    // because lockfile only check the process level
-    if (!locks_.Insert(filename)) {
-      ::close(fd);
-      return Status::IOError("lock " + filename, "already held by process");
-    }
+  Env* env() { return reinterpret_cast<Env*>(&env_storage_); }
 
-    // 3. Lock the file
-    if (LockOrUnlock(fd, true) == -1) {
-      int lock_errno = errno;
-      ::close(fd);
-      locks_.Remove(filename);
-      return PosixError("lock " + filename, lock_errno);
-    }
-
-    *lock = new PosixFileLock(fd, filename);
-    return Status::OK();
-  }
-
-  Status UnlockFile(FileLock* lock) override {
-    PosixFileLock* posix_file_lock = static_cast<PosixFileLock*>(lock);
-    if (LockOrUnlock(posix_file_lock->fd(), false) == -1) {
-      return PosixError("unlock " + posix_file_lock->filename(), errno);
-    }
-    locks_.Remove(posix_file_lock->filename());
-    ::close(posix_file_lock->fd());
-    delete posix_file_lock;
-    return Status::OK();
+  static void AssertEnvNotInitialized() {
+#if !defined(NDEBUG)
+    assert(!env_initialized_.load(std::memory_order_relaxed));
+#endif
   }
 
  private:
-  PosixLockTable locks_;
+  alignas(EnvType) char env_storage_[sizeof(EnvType)];
+
+#if !defined(NDEBUG)
+  static std::atomic<bool> env_initialized_;
+#endif
 };
 
+// C++17 can define in the class by inline
+#if !defined(NDEBUG)
+template <typename EnvType>
+std::atomic<bool> SingletonEnv<EnvType>::env_initialized_;
+#endif
+
+using PosixDefaultEnv = SingletonEnv<PosixEnv>;
+};  // namespace
+
 Env* Env::Default() {
-  static PosixEnv env;
-  return &env;
+  static PosixDefaultEnv env_container;
+  return env_container.env();
 }
-
-class PosixFileLock : public FileLock {};
-
 }  // namespace eveldb
