@@ -11,7 +11,7 @@ namespace eveldb {
 class EVELDB_EXPORT Status {
  public:
   Status() noexcept : state_(nullptr) {}
-  ~Status() { delete state_; }
+  ~Status() { delete[] state_; }
 
   Status(const Status& rhs);
   Status& operator=(const Status& rhs);
