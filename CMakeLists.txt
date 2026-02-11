@@ -34,6 +34,14 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 include(extern/catch2/catch2.cmake)
 
 # 4.2 cmake flag
+# disable the exception
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+# now pass
+else(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    string(REGEX REPLACE "-fexceptions" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
+endif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+
 if(EVELDB_ENABLE_ASAN)
     if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS 7.0))
         message (STATUS "Compiling with AddressSanitizer and UndefinedBehaviorSanitizer")
