@@ -143,6 +143,7 @@ target_sources(eveldb_tests
     "db/skiplist_test.cc"
     "util/status_test.cc"
     "util/arena_test.cc"
+    "util/coding_test.cc"
 )
 target_link_libraries(eveldb_tests Catch2::Catch2 eveldb)
 target_compile_definitions(eveldb_tests
