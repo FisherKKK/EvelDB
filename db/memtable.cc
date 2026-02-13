@@ -3,12 +3,26 @@
 #include "util/coding.h"
 
 namespace eveldb {
+static Slice GetLengthPrefixedSlice(const char* data) {
+  uint32_t len;
+  const char* p = data;
+  p = GetVarint32Ptr(p, p + 5, &len);
+  return Slice(p, len);
+}
+
 MemTable::MemTable(const InternalKeyComparator& comparator)
     : comparator_(comparator), refs_(0), table_(comparator_, &arena_) {}
 
 MemTable::~MemTable() { assert(refs_ == 0); }
 
 size_t MemTable::ApproximateMemoryUsage() { return arena_.MemoryUsage(); }
+
+int MemTable::KeyComparator::operator()(const char* aptr,
+                                        const char* bptr) const {
+  Slice a = GetLengthPrefixedSlice(aptr);
+  Slice b = GetLengthPrefixedSlice(bptr);
+  return comparator.Compare(a, b);
+}
 
 void MemTable::Add(SequenceNumber s, ValueType type, const Slice& key,
                    const Slice& value) {

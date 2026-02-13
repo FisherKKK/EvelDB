@@ -34,6 +34,8 @@ class InternalKeyComparator : public Comparator {
                                      const Slice& limit) const override;
 
   virtual void FindShortSuccessor(std::string* key) const override;
+
+  const Comparator* user_comparator() const { return user_comparator_; }
 };
 
 class LookupKey {
