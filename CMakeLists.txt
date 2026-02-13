@@ -66,6 +66,9 @@ target_sources(eveldb
         "db/db_impl.cc"
         "db/db_impl.h"
         "db/skiplist.h"
+        "db/dbformat.h"
+        "db/memtable.cc"
+        "db/memtable.h"
 
         "util/status.cc"
         "util/arena.cc"
@@ -80,6 +83,7 @@ target_sources(eveldb
         "util/hash.h"
         "util/testutil.cc"
         "util/testutil.h"
+
         "port/port.h"
         "port/port_stdcxx.h"
         "port/thread_annotations.h"
@@ -91,6 +95,8 @@ target_sources(eveldb
         "${EVELDB_PUBLIC_INCLUDE_DIR}/export.h"
         "${EVELDB_PUBLIC_INCLUDE_DIR}/options.h"
         "${EVELDB_PUBLIC_INCLUDE_DIR}/env.h"
+        "${EVELDB_PUBLIC_INCLUDE_DIR}/comparator.h"
+        "${EVELDB_PUBLIC_INCLUDE_DIR}/iterator.h"
 
 )
 
