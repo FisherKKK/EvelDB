@@ -34,6 +34,14 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 include(extern/catch2/catch2.cmake)
 
 # 4.2 cmake flag
+# disable the exception
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+# now pass
+else(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    string(REGEX REPLACE "-fexceptions" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
+endif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+
 if(EVELDB_ENABLE_ASAN)
     if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS 7.0))
         message (STATUS "Compiling with AddressSanitizer and UndefinedBehaviorSanitizer")
@@ -58,6 +66,9 @@ target_sources(eveldb
         "db/db_impl.cc"
         "db/db_impl.h"
         "db/skiplist.h"
+        "db/dbformat.h"
+        "db/memtable.cc"
+        "db/memtable.h"
 
         "util/status.cc"
         "util/arena.cc"
@@ -72,6 +83,7 @@ target_sources(eveldb
         "util/hash.h"
         "util/testutil.cc"
         "util/testutil.h"
+
         "port/port.h"
         "port/port_stdcxx.h"
         "port/thread_annotations.h"
@@ -83,6 +95,8 @@ target_sources(eveldb
         "${EVELDB_PUBLIC_INCLUDE_DIR}/export.h"
         "${EVELDB_PUBLIC_INCLUDE_DIR}/options.h"
         "${EVELDB_PUBLIC_INCLUDE_DIR}/env.h"
+        "${EVELDB_PUBLIC_INCLUDE_DIR}/comparator.h"
+        "${EVELDB_PUBLIC_INCLUDE_DIR}/iterator.h"
 
 )
 
@@ -129,6 +143,7 @@ target_sources(eveldb_tests
     "db/skiplist_test.cc"
     "util/status_test.cc"
     "util/arena_test.cc"
+    "util/coding_test.cc"
 )
 target_link_libraries(eveldb_tests Catch2::Catch2 eveldb)
 target_compile_definitions(eveldb_tests

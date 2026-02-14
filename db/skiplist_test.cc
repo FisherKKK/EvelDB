@@ -1,17 +1,9 @@
-// Copyright (c) 2011 The LevelDB Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style license that can be
-// found in the LICENSE file. See the AUTHORS file for names of contributors.
-
 #include "db/skiplist.h"
 
 #include <atomic>
+#include <catch2/catch_test_macros.hpp>
 #include <set>
 #include <sstream>  // Added for string stream construction in INFO
-
-// Catch2 头文件
-// 如果你使用的是 Catch2 v2，请包含 <catch2/catch.hpp>
-// 如果是 v3，通常包含以下头文件：
-#include <catch2/catch_test_macros.hpp>
 
 #include "eveldb/env.h"
 
@@ -372,10 +364,6 @@ static void RunConcurrent(int run) {
     state.Wait(TestState::DONE);
   }
 }
-
-// 在 Catch2 中，我们可以将这些作为独立的 TestCase，
-// 也可以使用 GENERATE 或 SECTION，但为了保持与原始测试结构一致，
-// 我们保留为独立的 TEST_CASE。
 
 TEST_CASE("SkipTest Concurrent1", "[SkipTest][Concurrent]") {
   RunConcurrent(1);
